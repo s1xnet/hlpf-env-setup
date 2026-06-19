@@ -7,149 +7,111 @@
 
 ---
 
-\# Практичне заняття 1: Підготовка середовища для розробки
+# Практичне заняття 1: Підготовка середовища для розробки
 
+## Student
 
+* Name: Лук'янова Ю. А.
+* Group: 232.1
 
-\## Student
+## Опис роботи
 
+У межах практичного заняття було підготовлено базове середовище для подальшої розробки.
+Було встановлено та перевірено Docker Desktop, Docker Compose і Git. Також було створено GitHub-репозиторій, додано базовий `Dockerfile` і `docker-compose.yml` для запуску контейнера з актуальною версією npm.
 
+## Перевірка Docker, Docker Compose та Git
 
-\* Name: Лукянова Ю. А.
+Команди:
 
-\* Group: 232.1
-
-
-
-\## Опис роботи
-
-
-
-У межах практичного заняття було підготовлено середовище для подальшої розробки. Було встановлено та перевірено Docker Desktop, Docker Compose, Git, створено GitHub-репозиторій, а також додано базовий Dockerfile і docker-compose.yml для запуску контейнера з актуальною версією npm.
-
-
-
-\## Перевірка Docker, Docker Compose та Git
-
-
-
-```text
-
+```bash
 docker --version
-
-Docker version 29.5.3, build d1c06ef
-
-
-
 docker compose version
-
-Docker Compose version v5.1.4
-
-
-
 git --version
-
-git version 2.54.0.windows.1
-
 ```
 
-
-
-\## Перевірка роботи Docker
-
-
+Вивід:
 
 ```text
+Docker version 29.5.3, build d1c06ef
+Docker Compose version v5.1.4
+git version 2.54.0.windows.1
+```
 
+## Перевірка роботи Docker
+
+Команда:
+
+```bash
 docker run --rm hello-world
+```
 
+Вивід:
 
-
+```text
 Hello from Docker!
 
 This message shows that your installation appears to be working correctly.
-
 ```
 
+## Перевірка docker-compose та latest npm
 
+Команда:
 
-\## Перевірка docker-compose та latest npm
-
-
-
-```text
-
+```bash
 docker compose up --build
+```
 
+Вивід:
 
-
+```text
 Image hlpf-env-setup-npm Built
-
-Network hlpf-env-setup\_default Created
-
+Network hlpf-env-setup_default Created
 Container hlpf-env-setup-npm-1 Created
-
 npm-1 | 11.17.0
-
 npm-1 exited with code 0
-
 ```
 
+## Перевірка версії npm
 
+Команда:
 
-\## Перевірка версії npm
-
-
-
-```text
-
+```bash
 docker compose run --rm npm npm -v
+```
 
+Вивід:
 
-
+```text
 11.17.0
-
 ```
 
+## Перевірка версії Node.js
 
+Команда:
 
-\## Перевірка версії Node.js
-
-
-
-```text
-
+```bash
 docker compose run --rm npm node --version
-
-
-
-v26.3.1
-
 ```
 
-
-
-\## Repository structure
-
-
+Вивід:
 
 ```text
-
-Dockerfile
-
-docker-compose.yml
-
-README.md
-
+v26.3.1
 ```
 
+## Структура репозиторію
 
+```text
+.
+├── Dockerfile
+├── docker-compose.yml
+└── README.md
+```
 
-\## Висновок
+## Висновок
 
-
-
-Під час виконання практичного заняття було підготовлено базове середовище для розробки. Docker Desktop і Docker Compose успішно встановлено та перевірено. Команда hello-world підтвердила, що Docker працює коректно. Також було створено GitHub-репозиторій, додано Dockerfile і docker-compose.yml, після чого через Docker Compose успішно перевірено версії npm та Node.js.
+У результаті виконання практичного заняття було підготовлено базове середовище для розробки.
+Docker Desktop і Docker Compose успішно встановлено та перевірено. Команда `hello-world` підтвердила коректну роботу Docker. Також було створено GitHub-репозиторій, додано `Dockerfile` і `docker-compose.yml`, після чого через Docker Compose було перевірено версії npm та Node.js.
 
 
 
