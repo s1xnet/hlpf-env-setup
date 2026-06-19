@@ -1,3 +1,12 @@
+# Практичні роботи
+
+## Навігація
+
+- [Практичне заняття 1: Підготовка середовища для розробки](#практичне-заняття-1-підготовка-середовища-для-розробки)
+- [Практичне заняття 2: NestJS + PostgreSQL + Redis у Docker](#практичне-заняття-2-nestjs--postgresql--redis-у-docker)
+
+---
+
 \# Практичне заняття 1: Підготовка середовища для розробки
 
 
@@ -144,3 +153,177 @@ README.md
 
 
 
+---
+
+# Практичне заняття 2: NestJS + PostgreSQL + Redis у Docker
+
+## Student
+
+* Name: Лук'янова Ю. А.
+* Group: 232.1
+
+## Опис роботи
+
+У межах практичного заняття було розширено середовище з Практичної роботи №1.
+До проєкту додано NestJS-застосунок, базу даних PostgreSQL та Redis для кешування.
+Усі сервіси запускаються через Docker Compose.
+
+## Структура репозиторію
+
+```text
+.
+├── src/
+│   ├── main.ts
+│   ├── app.module.ts
+│   ├── app.controller.ts
+│   └── app.service.ts
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
+├── package.json
+├── tsconfig.json
+├── nest-cli.json
+└── README.md
+```
+
+## Запуск проєкту
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Файл `.env.example` містить приклади змінних оточення для навчального запуску проєкту.
+
+## Перевірка сервісів
+
+Команда:
+
+```bash
+docker compose ps
+```
+
+Вивід:
+
+```text
+NAME                         IMAGE                  STATUS
+hlpf-env-setup-app-1          hlpf-env-setup-app     running
+hlpf-env-setup-postgres-1     postgres:16-alpine     running (healthy)
+hlpf-env-setup-redis-1        redis:7-alpine         running (healthy)
+```
+
+## Перевірка PostgreSQL
+
+Команда:
+
+```bash
+docker compose exec postgres psql -U nestuser -d nestdb -c '\l'
+```
+
+Вивід:
+
+```text
+List of databases
+Name      | Owner    | Encoding
+----------+----------+---------
+nestdb    | nestuser | UTF8
+postgres  | nestuser | UTF8
+template0 | nestuser | UTF8
+template1 | nestuser | UTF8
+```
+
+## Перевірка Redis
+
+Команда:
+
+```bash
+docker compose exec redis redis-cli ping
+```
+
+Вивід:
+
+```text
+PONG
+```
+
+## Перевірка застосунку
+
+Команда:
+
+```bash
+curl http://localhost:3000
+```
+
+Вивід:
+
+```text
+Hello World!
+```
+
+Також застосунок можна перевірити у браузері за адресою:
+
+```text
+http://localhost:3000
+```
+
+Очікувана відповідь:
+
+```text
+Hello World!
+```
+
+## Логи NestJS
+
+Команда:
+
+```bash
+docker compose logs app
+```
+
+Фрагмент логів:
+
+```text
+[Nest] LOG [NestFactory] Starting Nest application...
+[Nest] LOG [InstanceLoader] TypeOrmModule dependencies initialized
+[Nest] LOG [InstanceLoader] CacheModule dependencies initialized
+[Nest] LOG [NestApplication] Nest application successfully started
+```
+
+## Підключення PostgreSQL через TypeORM
+
+У файлі `src/app.module.ts` додано `TypeOrmModule.forRoot(...)`.
+
+Підключення використовує змінні оточення:
+
+```text
+POSTGRES_HOST
+POSTGRES_PORT
+POSTGRES_USER
+POSTGRES_PASSWORD
+POSTGRES_DB
+```
+
+## Підключення Redis через CacheModule
+
+У файлі `src/app.module.ts` додано `CacheModule.registerAsync(...)`.
+
+Підключення використовує змінні оточення:
+
+```text
+REDIS_HOST
+REDIS_PORT
+```
+
+## Коміти
+
+У репозиторії створено нові коміти:
+
+```text
+add postgresql and redis to docker-compose
+init nestjs project with db and redis connection
+```
+
+## Висновок
+
+У результаті виконання практичного заняття було створено Docker-середовище для NestJS-застосунку з підключенням PostgreSQL та Redis.
+Було налаштовано `Dockerfile`, `docker-compose.yml`, змінні оточення, структуру NestJS-проєкту, підключення до бази даних через TypeORM та кешування через Redis.
