@@ -5,6 +5,8 @@
 - [Практичне заняття 1: Підготовка середовища для розробки](#практичне-заняття-1-підготовка-середовища-для-розробки)
 - [Практичне заняття 2: NestJS + PostgreSQL + Redis у Docker](#практичне-заняття-2-nestjs--postgresql--redis-у-docker)
 - [Практичне заняття 3: MiniShop CRUD REST API на NestJS](#практичне-заняття-3-minishop-crud-rest-api-на-nestjs)
+- [Практичне заняття 4: DTO + class-validator + Pipes]
+  (#практичне-заняття-4-dto--class-validator--pipes)
   
 ---
 
@@ -375,3 +377,189 @@ http://localhost:3000
 ## Висновок
 
 У результаті роботи створено MiniShop CRUD REST API з двома пов'язаними сутностями, ручною та згенерованою міграціями, вимкненою автоматичною синхронізацією бази даних і можливістю запуску проєкту з нуля через Docker Compose.
+
+
+
+
+---
+
+# Практичне заняття 4: DTO + class-validator + Pipes
+
+## Student
+
+- Name: Лук'янова Ю. А.
+- Group: 232.1
+
+## Опис роботи
+
+У межах практичного заняття до MiniShop API було додано валідацію вхідних даних. Створено окремі DTO-класи для категорій і товарів з декораторами `class-validator`, підключено глобальний `ValidationPipe`, а контролери й сервіси переведено на строго типізовані DTO.
+
+Також створено кастомний `TrimPipe`, який автоматично прибирає зайві пробіли на початку та в кінці рядкових значень у тілі запиту перед валідацією.
+
+## Реалізовані модулі
+
+- `src/categories/dto/create-category.dto.ts` - DTO для створення категорії.
+- `src/categories/dto/update-category.dto.ts` - DTO для часткового оновлення категорії через `PartialType`.
+- `src/products/dto/create-product.dto.ts` - DTO для створення товару з перевіркою ціни, залишку та ідентифікатора категорії.
+- `src/products/dto/update-product.dto.ts` - DTO для часткового оновлення товару.
+- `src/common/pipes/trim.pipe.ts` - кастомний Pipe для видалення зайвих пробілів.
+- `src/main.ts` - глобальне підключення `TrimPipe` і `ValidationPipe`.
+
+## Налаштування ValidationPipe
+
+У файлі `src/main.ts` підключено глобальну валідацію:
+
+```ts
+app.useGlobalPipes(
+  new TrimPipe(),
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }),
+);
+```
+
+- `whitelist: true` - дозволяє лише поля, описані в DTO.
+- `forbidNonWhitelisted: true` - повертає помилку `400`, якщо передано зайве поле.
+- `transform: true` - перетворює JSON-дані на екземпляри DTO.
+- `TrimPipe` запускається першим і очищує рядкові дані від пробілів.
+
+## Структура репозиторію
+
+```text
+.
+├── src/
+│   ├── categories/
+│   │   ├── dto/
+│   │   │   ├── create-category.dto.ts
+│   │   │   └── update-category.dto.ts
+│   │   ├── categories.controller.ts
+│   │   └── categories.service.ts
+│   ├── products/
+│   │   ├── dto/
+│   │   │   ├── create-product.dto.ts
+│   │   │   └── update-product.dto.ts
+│   │   ├── products.controller.ts
+│   │   └── products.service.ts
+│   ├── common/
+│   │   └── pipes/
+│   │       └── trim.pipe.ts
+│   └── main.ts
+├── Dockerfile
+├── docker-compose.yml
+└── README.md
+```
+
+## Запуск проєкту
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+docker compose logs --tail=100 app
+```
+
+Після запуску застосунок успішно скомпілювався без помилок, а маршрути `/api/categories` і `/api/products` були зареєстровані.
+
+## Перевірка роботи
+
+### Тест TrimPipe
+
+Було створено категорію з пробілами на початку та в кінці назви.
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/categories" -Method Post -ContentType "application/json" -Body '{"name":"  Accessories  "}'
+```
+
+Результат:
+
+```text
+name          id
+----          --
+Accessories    2
+```
+
+`TrimPipe` прибрав зайві пробіли, тому в базі збережено значення `Accessories`.
+
+### Тест валідації - порожнє ім'я категорії
+
+```powershell
+try { Invoke-RestMethod -Uri "http://localhost:3000/api/categories" -Method Post -ContentType "application/json" -Body '{"name":""}' } catch { $_.ErrorDetails.Message }
+```
+
+Результат:
+
+```json
+{
+  "message": ["name must be longer than or equal to 2 characters"],
+  "error": "Bad Request",
+  "statusCode": 400
+}
+```
+
+### Тест валідації - зайве поле
+
+```powershell
+try { Invoke-RestMethod -Uri "http://localhost:3000/api/categories" -Method Post -ContentType "application/json" -Body '{"name":"Test","isAdmin":true}' } catch { $_.ErrorDetails.Message }
+```
+
+Результат:
+
+```json
+{
+  "message": ["property isAdmin should not exist"],
+  "error": "Bad Request",
+  "statusCode": 400
+}
+```
+
+### Тест валідного створення товару
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/products" -Method Post -ContentType "application/json" -Body '{"name":"iPhone 16","price":999.99,"stock":50,"categoryId":2}'
+```
+
+Результат:
+
+```text
+name     : iPhone 16
+price    : 999.99
+stock    : 50
+category : Accessories
+id       : 2
+```
+
+### Тест валідації - від'ємна ціна товару
+
+```powershell
+try { Invoke-RestMethod -Uri "http://localhost:3000/api/products" -Method Post -ContentType "application/json" -Body '{"name":"Bad Product","price":-5}' } catch { $_.ErrorDetails.Message }
+```
+
+Результат:
+
+```json
+{
+  "message": ["price must not be less than 0.01"],
+  "error": "Bad Request",
+  "statusCode": 400
+}
+```
+
+### Тест часткового оновлення товару
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/products/2" -Method Patch -ContentType "application/json" -Body '{"price":899.99}'
+```
+
+Результат:
+
+```text
+id    : 2
+name  : iPhone 16
+price : 899.99
+stock : 50
+```
+
+## Висновок
+
+У ході практичного заняття було реалізовано валідацію вхідних даних у MiniShop API. DTO-класи забезпечили єдиний опис структури даних для категорій і товарів, а `ValidationPipe` відхиляє некоректні запити та зайві поля. Кастомний `TrimPipe` очищує рядкові значення до перевірки. Роботу API підтверджено успішним запуском контейнерів і тестовими HTTP-запитами.
