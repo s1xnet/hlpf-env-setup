@@ -6,6 +6,7 @@
 - [Практичне заняття 2: NestJS + PostgreSQL + Redis у Docker](#практичне-заняття-2-nestjs--postgresql--redis-у-docker)
 - [Практичне заняття 3: MiniShop CRUD REST API на NestJS](#практичне-заняття-3-minishop-crud-rest-api-на-nestjs)
 - [Практичне заняття 4: DTO + class-validator + Pipes](#практичне-заняття-4-dto--class-validator--pipes)
+- [Практичне заняття 5: JWT Authentication + Guards + RBAC](#практичне-заняття-5-jwt-authentication--guards--rbac)
   
 ---
 
@@ -562,3 +563,202 @@ stock : 50
 ## Висновок
 
 У ході практичного заняття було реалізовано валідацію вхідних даних у MiniShop API. DTO-класи забезпечили єдиний опис структури даних для категорій і товарів, а `ValidationPipe` відхиляє некоректні запити та зайві поля. Кастомний `TrimPipe` очищує рядкові значення до перевірки. Роботу API підтверджено успішним запуском контейнерів і тестовими HTTP-запитами.
+
+
+---
+
+# Практичне заняття 5: JWT Authentication + Guards + RBAC
+
+## Student
+
+* Name: Лук'янова Ю. А.
+* Group: 232.1
+
+## Опис роботи
+
+У межах практичного заняття було додано систему автентифікації та авторизації до MiniShop API на NestJS. Було реалізовано реєстрацію користувачів, логін, генерацію JWT-токена, захист маршрутів за допомогою Guards та рольову модель доступу RBAC. Паролі користувачів зберігаються у базі даних тільки у вигляді bcrypt-хешу. Публічні GET-запити залишилися доступними без токена, а створення, редагування і видалення товарів та категорій доступні тільки користувачу з роллю `admin`.
+
+## Виконані кроки
+
+Для роботи з JWT та хешуванням паролів було встановлено залежності:
+
+```bash
+docker compose exec app npm install @nestjs/jwt bcrypt
+docker compose exec app npm install -D @types/bcrypt
+```
+
+До файлів `.env` та `.env.example` було додано змінні середовища:
+
+```env
+JWT_SECRET=my-super-secret-key-change-in-production
+JWT_EXPIRES_IN=1h
+```
+
+Було створено enum ролей:
+
+```ts
+export enum Role {
+  USER = 'user',
+  ADMIN = 'admin',
+}
+```
+
+Для користувачів було створено сутність `User`, яка містить поля `id`, `email`, `passwordHash`, `name`, `role` та `createdAt`. Поле `email` є унікальним, поле `passwordHash` зберігає хеш пароля, а поле `role` за замовчуванням має значення `user`.
+
+Також було створено `UsersModule` та `UsersService`. Сервіс відповідає за пошук користувача за email та створення нового користувача.
+
+Для створення таблиці користувачів було згенеровано міграцію:
+
+```bash
+docker compose run --rm app npx ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:generate src/migrations/CreateUsers -d src/data-source.ts
+```
+
+Результат:
+
+```text
+Migration /app/src/migrations/1782172648690-CreateUsers.ts has been generated successfully.
+```
+
+Після запуску застосунку таблиця `users` була створена у PostgreSQL. Перевірка таблиці виконувалась командою:
+
+```bash
+docker compose exec postgres psql -U nestuser -d nestdb -c "\d users"
+```
+
+У результаті було підтверджено, що таблиця містить поля `id`, `email`, `passwordHash`, `name`, `role`, `createdAt`, primary key для `id` та unique constraint для `email`.
+
+## Реалізовані модулі
+
+Було створено модуль `AuthModule`, який відповідає за реєстрацію, логін та роботу з JWT. У модулі реалізовано `AuthController`, `AuthService`, `RegisterDto` та `LoginDto`.
+
+Маршрути авторизації:
+
+| Метод | URL | Опис |
+|---|---|---|
+| POST | `/auth/register` | Реєстрація користувача |
+| POST | `/auth/login` | Логін користувача та отримання JWT |
+
+Під час реєстрації система перевіряє, чи існує користувач з таким email. Якщо користувача немає, пароль хешується за допомогою bcrypt і користувач зберігається у базі даних. У відповіді сервера поле `passwordHash` не повертається.
+
+Перевірка реєстрації:
+
+```bash
+curl.exe -X POST http://localhost:3000/auth/register -H "Content-Type: application/json" -d '{\"email\":\"admin@test.com\",\"password\":\"password123\",\"name\":\"Admin\"}'
+```
+
+Результат:
+
+```json
+{"email":"admin@test.com","name":"Admin","id":1,"role":"user","createdAt":"2026-06-23T01:32:28.551Z"}
+```
+
+Перевірка логіну:
+
+```bash
+curl.exe -X POST http://localhost:3000/auth/login -H "Content-Type: application/json" -d '{\"email\":\"admin@test.com\",\"password\":\"password123\"}'
+```
+
+Результат:
+
+```json
+{"accessToken":"eyJhbGciOiJIUzI1NiIsInR5cCI..."}
+```
+
+## Guards та RBAC
+
+Для захисту маршрутів було створено `JwtAuthGuard`. Він перевіряє наявність Bearer-токена в заголовку `Authorization`, валідує JWT через `JwtService` і записує дані користувача в `request.user`.
+
+Також було створено `RolesGuard`, який перевіряє роль користувача. Для цього було реалізовано декоратор `@Roles()`, який задає список дозволених ролей для маршруту. Додатково було створено декоратор `@CurrentUser()` для отримання поточного користувача з request.
+
+У контролерах `ProductsController` та `CategoriesController` методи `POST`, `PATCH` і `DELETE` були захищені так:
+
+```ts
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.ADMIN)
+```
+
+GET-запити залишилися публічними.
+
+## Перевірка роботи
+
+Спроба створити товар без токена:
+
+```bash
+curl.exe -X POST http://localhost:3000/api/products -H "Content-Type: application/json" -d '{\"name\":\"HackedProduct\",\"price\":1,\"stock\":1}'
+```
+
+Результат:
+
+```json
+{"message":"Missing authorization token","error":"Unauthorized","statusCode":401}
+```
+
+Це підтверджує, що `JwtAuthGuard` працює правильно.
+
+Далі було отримано токен користувача з роллю `user`:
+
+```powershell
+$USER_TOKEN = (Invoke-RestMethod -Method Post -Uri "http://localhost:3000/auth/login" -ContentType "application/json" -Body '{"email":"admin@test.com","password":"password123"}').accessToken
+```
+
+Спроба створити товар з токеном користувача:
+
+```bash
+curl.exe -X POST http://localhost:3000/api/products -H "Content-Type: application/json" -H "Authorization: Bearer $USER_TOKEN" -d '{\"name\":\"BlockedProduct\",\"price\":99,\"stock\":1}'
+```
+
+Результат:
+
+```json
+{"message":"Insufficient permissions","error":"Forbidden","statusCode":403}
+```
+
+Це підтверджує, що користувач з роллю `user` не має доступу до admin-операцій.
+
+Після цього роль користувача було змінено на `admin`:
+
+```bash
+docker compose exec postgres psql -U nestuser -d nestdb -c "UPDATE users SET role = 'admin' WHERE email = 'admin@test.com';"
+```
+
+Результат:
+
+```text
+UPDATE 1
+```
+
+Було отримано новий токен адміністратора:
+
+```powershell
+$ADMIN_TOKEN = (Invoke-RestMethod -Method Post -Uri "http://localhost:3000/auth/login" -ContentType "application/json" -Body '{"email":"admin@test.com","password":"password123"}').accessToken
+```
+
+Створення товару з admin-токеном:
+
+```bash
+curl.exe -X POST http://localhost:3000/api/products -H "Content-Type: application/json" -H "Authorization: Bearer $ADMIN_TOKEN" -d '{\"name\":\"MacBook\",\"price\":2499.99,\"stock\":10}'
+```
+
+Результат:
+
+```json
+{"name":"MacBook","price":2499.99,"stock":10,"description":null,"id":3,"isActive":true,"createdAt":"2026-06-23T02:06:44.548Z","updatedAt":"2026-06-23T02:06:44.548Z"}
+```
+
+Це підтверджує, що користувач з роллю `admin` має доступ до створення товарів.
+
+## Проблеми під час виконання
+
+Під час роботи виникла проблема з тим, що після встановлення пакетів через `docker compose run --rm app` застосунок не бачив пакети `@nestjs/jwt` та `bcrypt`. Проблему було вирішено встановленням залежностей безпосередньо у працюючий контейнер через `docker compose exec app`.
+
+Також у PowerShell команда `curl.exe` некоректно обробляла JSON без екранування лапок, тому було використано формат з `\"`.
+
+Ще одна проблема була пов'язана з типізацією параметра `expiresIn` у `@nestjs/jwt`. Її було вирішено через імпорт `StringValue` з пакета `ms` та приведення типу:
+
+```ts
+expiresIn: config.get<string>('JWT_EXPIRES_IN', '1h') as StringValue
+```
+
+## Висновок
+
+У результаті практичного заняття було реалізовано систему автентифікації та авторизації для MiniShop API. Було додано реєстрацію користувачів, логін, генерацію JWT-токена, збереження паролів у вигляді bcrypt-хешу, захист маршрутів через `JwtAuthGuard` та перевірку ролей через `RolesGuard`. Публічні GET-запити залишилися доступними без токена, а створення, редагування і видалення товарів та категорій доступні тільки адміністратору. Перевірки через curl підтвердили коректну роботу статусів `401 Unauthorized`, `403 Forbidden` та успішне створення товару користувачем з роллю `admin`.
