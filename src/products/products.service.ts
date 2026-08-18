@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Inject,
+} from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
@@ -14,6 +20,8 @@ export class ProductsService {
     private readonly productsRepository: Repository<Product>,
     @InjectRepository(Category)
     private readonly categoriesRepository: Repository<Category>,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
   ) {}
 
   async create(dto: CreateProductDto): Promise<Product> {
@@ -24,10 +32,20 @@ export class ProductsService {
       product.category = await this.getCategory(categoryId);
     }
 
-    return this.productsRepository.save(product);
+    const saved = await this.productsRepository.save(product);
+    await this.clearProductsCache();
+    return saved;
   }
 
-    async findAll(query: ProductQueryDto) {
+  async findAll(query: ProductQueryDto) {
+    const cacheKey = `products:${JSON.stringify(query)}`;
+
+    const cached = await this.cacheManager.get(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
     const {
       page = 1,
       pageSize = 10,
@@ -71,7 +89,7 @@ export class ProductsService {
 
     const [items, total] = await qb.getManyAndCount();
 
-    return {
+    const result = {
       items,
       meta: {
         page,
@@ -80,6 +98,10 @@ export class ProductsService {
         totalPages: Math.ceil(total / pageSize),
       },
     };
+
+    await this.cacheManager.set(cacheKey, result, 60_000);
+
+    return result;
   }
 
   async findOne(id: number): Promise<Product> {
@@ -105,12 +127,26 @@ export class ProductsService {
       product.category = await this.getCategory(categoryId);
     }
 
-    return this.productsRepository.save(product);
+    const saved = await this.productsRepository.save(product);
+    await this.clearProductsCache();
+    return saved;
   }
 
   async remove(id: number): Promise<void> {
     const product = await this.findOne(id);
     await this.productsRepository.remove(product);
+    await this.clearProductsCache();
+  }
+
+  private async clearProductsCache(): Promise<void> {
+    const keys: string[] =
+      await this.cacheManager.store.keys('products:*');
+
+    if (keys.length > 0) {
+      await Promise.all(
+        keys.map((key) => this.cacheManager.del(key)),
+      );
+    }
   }
 
   private async getCategory(id: number): Promise<Category> {
