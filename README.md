@@ -9,6 +9,7 @@
 - [Практичне заняття 5: JWT Authentication + Guards + RBAC](#практичне-заняття-5-jwt-authentication--guards--rbac)
 - [Практичне заняття №6: Interceptors + Exception Filters + Swagger](#практичне-заняття-6--interceptors--exception-filters--swagger)
 - [Практичне заняття №7: Redis кешування + Query параметри + Pagination](#практичне-заняття-7--redis-кешування--query-параметри--pagination)
+- [Практичне заняття №8: Модуль замовлень — фінальний проєкт MiniShop](#практичне-заняття-8-модуль-замовлень--фінальний-проєкт-minishop)
   
 ---
 
@@ -1176,3 +1177,715 @@ http://localhost:3000/api/docs
 ## Висновок
 
 У результаті виконання практичного заняття №7 було реалізовано повноцінну пагінацію списку продуктів із мета-інформацією, сортування за дозволеними полями, фільтрацію за категорією та діапазоном цін, а також регістронезалежний пошук за назвою. Для побудови складних і параметризованих SQL-запитів використано TypeORM QueryBuilder. Результати запитів кешуються в Redis протягом 60 секунд, а після створення, оновлення або видалення продукту кеш автоматично очищується. Доданий seed-скрипт забезпечив базу достатньою кількістю тестових даних, а виконані перевірки підтвердили правильну роботу пагінації, валідації query-параметрів, фільтрації, сортування, пошуку, кешування, інвалідації кешу та Swagger-документації.
+
+
+---
+
+# Практичне заняття №8: Модуль замовлень — фінальний проєкт MiniShop
+
+## Student
+
+* Name: Лук'янова Ю. А.
+* Group: 232.1
+
+## Мета роботи
+
+Метою практичного заняття було завершення розробки фінального проєкту MiniShop шляхом створення повноцінного модуля замовлень. У межах роботи необхідно було реалізувати сутності замовлення та його позицій, вкладену валідацію DTO, транзакційне створення замовлення, перевірку залишків товарів, автоматичний розрахунок загальної вартості, ownership check, пагінацію, фільтрацію за статусом, керування статусами, JWT-автентифікацію, рольову авторизацію та Swagger-документацію.
+
+## MiniShop API — фінальний проєкт
+
+MiniShop — це REST API інтернет-магазину, розроблений на NestJS із використанням PostgreSQL та Redis. Застосунок підтримує реєстрацію та автентифікацію користувачів, керування категоріями й продуктами, кешування списку товарів, пагінацію, сортування, фільтрацію, пошук і повний цикл роботи із замовленнями.
+
+## Використані технології
+
+* NestJS та TypeScript;
+* PostgreSQL;
+* TypeORM, міграції та QueryBuilder;
+* Redis і cache-manager;
+* JWT Authentication;
+* RBAC Authorization;
+* class-validator;
+* class-transformer;
+* Swagger / OpenAPI;
+* Docker і Docker Compose;
+* Git та GitHub.
+
+## Структура фінального проєкту
+
+```text
+hlpf-env-setup/
+├── src/
+│   ├── auth/
+│   │   ├── dto/
+│   │   │   ├── login.dto.ts
+│   │   │   └── register.dto.ts
+│   │   ├── auth.controller.ts
+│   │   ├── auth.module.ts
+│   │   └── auth.service.ts
+│   ├── categories/
+│   │   ├── dto/
+│   │   │   ├── create-category.dto.ts
+│   │   │   └── update-category.dto.ts
+│   │   ├── categories.controller.ts
+│   │   ├── categories.module.ts
+│   │   ├── categories.service.ts
+│   │   └── category.entity.ts
+│   ├── common/
+│   │   ├── decorators/
+│   │   │   ├── current-user.decorator.ts
+│   │   │   └── roles.decorator.ts
+│   │   ├── enums/
+│   │   │   ├── order-status.enum.ts
+│   │   │   └── role.enum.ts
+│   │   ├── filters/
+│   │   │   └── http-exception.filter.ts
+│   │   ├── guards/
+│   │   │   ├── jwt-auth.guard.ts
+│   │   │   └── roles.guard.ts
+│   │   ├── interceptors/
+│   │   │   ├── logging.interceptor.ts
+│   │   │   └── transform.interceptor.ts
+│   │   └── pipes/
+│   │       └── trim.pipe.ts
+│   ├── migrations/
+│   │   ├── 1700000001000-CreateTables.ts
+│   │   ├── 1781921208651-AddIsActiveToProducts.ts
+│   │   ├── 1782172648690-CreateUsers.ts
+│   │   └── 1787087790727-CreateOrders.ts
+│   ├── orders/
+│   │   ├── dto/
+│   │   │   ├── create-order-item.dto.ts
+│   │   │   ├── create-order.dto.ts
+│   │   │   ├── order-query.dto.ts
+│   │   │   └── update-order-status.dto.ts
+│   │   ├── entities/
+│   │   │   ├── order-item.entity.ts
+│   │   │   └── order.entity.ts
+│   │   ├── orders.controller.ts
+│   │   ├── orders.module.ts
+│   │   └── orders.service.ts
+│   ├── products/
+│   │   ├── dto/
+│   │   │   ├── create-product.dto.ts
+│   │   │   ├── product-query.dto.ts
+│   │   │   └── update-product.dto.ts
+│   │   ├── product.entity.ts
+│   │   ├── products.controller.ts
+│   │   ├── products.module.ts
+│   │   └── products.service.ts
+│   ├── seeds/
+│   │   └── seed.ts
+│   ├── users/
+│   │   ├── user.entity.ts
+│   │   ├── users.module.ts
+│   │   └── users.service.ts
+│   ├── app.controller.ts
+│   ├── app.module.ts
+│   ├── app.service.ts
+│   ├── data-source.ts
+│   └── main.ts
+├── Dockerfile
+├── docker-compose.yml
+├── nest-cli.json
+├── package.json
+├── package-lock.json
+├── README.md
+├── tsconfig.build.json
+└── tsconfig.json
+```
+
+## Запуск проєкту
+
+Для запуску застосунку використовуються команди:
+
+```bash
+docker compose up --build -d
+docker compose run --rm app npm run seed
+```
+
+Перевірка стану контейнерів:
+
+```bash
+docker compose ps
+```
+
+У результаті контейнери `app`, `postgres` і `redis` були успішно запущені. PostgreSQL та Redis отримали статус `healthy`, а NestJS-застосунок став доступним за адресою `http://localhost:3000`.
+
+Seed-скрипт завершився повідомленням:
+
+```text
+Seed complete: 3 categories, 30 products
+```
+
+## Сутності Order та OrderItem
+
+Для збереження замовлень було створено дві нові сутності: `Order` і `OrderItem`.
+
+Сутність `Order` містить:
+
+* унікальний ідентифікатор;
+* статус замовлення;
+* загальну вартість;
+* користувача, який створив замовлення;
+* масив позицій замовлення;
+* дату створення.
+
+Сутність `OrderItem` містить:
+
+* унікальний ідентифікатор;
+* кількість одиниць товару;
+* ціну товару на момент створення замовлення;
+* зв’язок із замовленням;
+* зв’язок із продуктом.
+
+Для статусів створено enum `OrderStatus`:
+
+```typescript
+export enum OrderStatus {
+  PENDING = 'pending',
+  CONFIRMED = 'confirmed',
+  SHIPPED = 'shipped',
+  DELIVERED = 'delivered',
+  CANCELLED = 'cancelled',
+}
+```
+
+Поле `price` в `OrderItem` зберігає snapshot ціни. Завдяки цьому зміна актуальної ціни продукту не змінює вартість уже створеного замовлення.
+
+## Міграція бази даних
+
+Міграцію було згенеровано командою:
+
+```bash
+docker compose run --rm app npx ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:generate src/migrations/CreateOrders -d src/data-source.ts
+```
+
+Результат:
+
+```text
+Migration /app/src/migrations/1787087790727-CreateOrders.ts has been generated successfully.
+```
+
+Міграція створила таблиці `orders` та `order_items`, enum `orders_status_enum`, primary keys і foreign keys до таблиць `users`, `products` та `orders`.
+
+Перевірка таблиць:
+
+```bash
+docker compose exec postgres psql -U nestuser -d nestdb -c "\d orders"
+docker compose exec postgres psql -U nestuser -d nestdb -c "\d order_items"
+```
+
+Таблиця `orders` містить колонки `id`, `status`, `totalPrice`, `createdAt` і `userId`. Таблиця `order_items` містить `id`, `quantity`, `price`, `orderId` і `productId`. Для зв’язку між замовленням та його позиціями налаштовано `ON DELETE CASCADE`.
+
+## DTO та вкладена валідація
+
+Для модуля замовлень створено DTO:
+
+* `CreateOrderItemDto`;
+* `CreateOrderDto`;
+* `UpdateOrderStatusDto`;
+* `OrderQueryDto`.
+
+Масив `items` перевіряється за допомогою:
+
+```typescript
+@IsArray()
+@ArrayMinSize(1)
+@ValidateNested({ each: true })
+@Type(() => CreateOrderItemDto)
+```
+
+Кожна позиція повинна містити цілий додатний `productId` та `quantity`, що не може бути меншою за одиницю.
+
+## OrdersModule
+
+Створений `OrdersModule` містить controller, service, DTO та Entity. Модуль зареєстровано в `AppModule`, а сутності `Order` і `OrderItem` додано до TypeORM.
+
+Для всіх маршрутів замовлень обов’язковий JWT. Зміна статусу та видалення доступні тільки користувачам із роллю `admin`.
+
+## Транзакційне створення замовлення
+
+Створення замовлення виконується в одній транзакції TypeORM через `QueryRunner`.
+
+Алгоритм створення:
+
+1. Система знаходить кожен продукт за `productId`.
+2. Перевіряє наявну кількість товару.
+3. Зменшує `stock`.
+4. Зберігає ціну товару в `OrderItem`.
+5. Розраховує `totalPrice`.
+6. Зберігає замовлення та його позиції.
+7. Підтверджує транзакцію.
+8. Очищає Redis-кеш продуктів.
+
+Якщо під час виконання виникає помилка, виконується `rollbackTransaction()`, тому жодна часткова зміна не потрапляє до бази.
+
+## Ownership check
+
+Для звичайного користувача до запиту додається умова:
+
+```sql
+order.userId = :userId
+```
+
+Тому користувач бачить тільки власні замовлення. Адміністратор може переглядати всі замовлення.
+
+Під час отримання одного замовлення перевіряється його власник. Якщо звичайний користувач намагається відкрити чуже замовлення, сервер повертає `403 Forbidden`. Із відповіді API також виключено поле `passwordHash`.
+
+## Пагінація та фільтрація
+
+Маршрут `GET /api/orders` підтримує параметри:
+
+* `page`;
+* `pageSize`;
+* `status`.
+
+Відповідь містить масив `items` і мета-інформацію:
+
+```json
+{
+  "items": [],
+  "meta": {
+    "page": 1,
+    "pageSize": 10,
+    "total": 0,
+    "totalPages": 0
+  }
+}
+```
+
+Максимальне значення `pageSize` обмежене числом `100`.
+
+## Статуси замовлення
+
+Реалізовано такі дозволені переходи:
+
+| Поточний статус | Дозволений наступний статус |
+|---|---|
+| `pending` | `confirmed`, `cancelled` |
+| `confirmed` | `shipped`, `cancelled` |
+| `shipped` | `delivered` |
+| `delivered` | зміна заборонена |
+| `cancelled` | зміна заборонена |
+
+При спробі виконати заборонений перехід сервер повертає `400 Bad Request`.
+
+Додатково реалізовано повернення товарів на склад при скасуванні замовлення. Збільшення `stock` також виконується в транзакції, після чого Redis-кеш продуктів очищається.
+
+## Повна таблиця API endpoints
+
+### Auth
+
+| Method | URL | Auth | Опис |
+|---|---|---|---|
+| POST | `/auth/register` | Ні | Реєстрація користувача |
+| POST | `/auth/login` | Ні | Авторизація та отримання JWT |
+
+### Categories
+
+| Method | URL | Auth | Опис |
+|---|---|---|---|
+| GET | `/api/categories` | Ні | Отримати список категорій |
+| GET | `/api/categories/:id` | Ні | Отримати одну категорію |
+| POST | `/api/categories` | Admin | Створити категорію |
+| PATCH | `/api/categories/:id` | Admin | Оновити категорію |
+| DELETE | `/api/categories/:id` | Admin | Видалити категорію |
+
+### Products
+
+| Method | URL | Auth | Опис |
+|---|---|---|---|
+| GET | `/api/products` | Ні | Список, пагінація, пошук і фільтрація |
+| GET | `/api/products/:id` | Ні | Отримати один продукт |
+| POST | `/api/products` | Admin | Створити продукт |
+| PATCH | `/api/products/:id` | Admin | Оновити продукт |
+| DELETE | `/api/products/:id` | Admin | Видалити продукт |
+
+### Orders
+
+| Method | URL | Auth | Опис |
+|---|---|---|---|
+| POST | `/api/orders` | User, Admin | Створити замовлення |
+| GET | `/api/orders` | User, Admin | Власні замовлення або всі для admin |
+| GET | `/api/orders/:id` | User, Admin | Отримати замовлення з ownership check |
+| PATCH | `/api/orders/:id/status` | Admin | Змінити статус замовлення |
+| DELETE | `/api/orders/:id` | Admin | Видалити замовлення |
+
+## Тест захисту без JWT
+
+Запит:
+
+```bash
+curl.exe -i -X POST http://localhost:3000/api/orders -H "Content-Type: application/json" -d "{\"items\":[{\"productId\":33,\"quantity\":1}]}"
+```
+
+Результат:
+
+```json
+{
+  "error": {
+    "code": 401,
+    "message": "Missing authorization token"
+  }
+}
+```
+
+Маршрут створення замовлення правильно захищений `JwtAuthGuard`.
+
+## Тест вкладеної валідації
+
+Порожній масив:
+
+```json
+{
+  "items": []
+}
+```
+
+Результат:
+
+```json
+{
+  "error": {
+    "code": 400,
+    "message": "Validation failed",
+    "details": [
+      "items must contain at least 1 elements"
+    ]
+  }
+}
+```
+
+Невірний `productId`:
+
+```json
+{
+  "items": [
+    {
+      "productId": "abc",
+      "quantity": 1
+    }
+  ]
+}
+```
+
+Результат містить повідомлення:
+
+```text
+items.0.productId must be an integer number
+```
+
+Невірна кількість:
+
+```json
+{
+  "items": [
+    {
+      "productId": 33,
+      "quantity": 0
+    }
+  ]
+}
+```
+
+Результат:
+
+```text
+items.0.quantity must not be less than 1
+```
+
+Усі невалідні запити повернули `400 Bad Request`.
+
+## Тест створення замовлення
+
+Alice створила замовлення з такими позиціями:
+
+```json
+{
+  "items": [
+    {
+      "productId": 33,
+      "quantity": 2
+    },
+    {
+      "productId": 32,
+      "quantity": 1
+    }
+  ]
+}
+```
+
+Ціна товару `33` становила `42.00`, а товару `32` — `75.00`.
+
+Очікувана загальна сума:
+
+```text
+42 × 2 + 75 × 1 = 159.00
+```
+
+Результат:
+
+```json
+{
+  "data": {
+    "id": 1,
+    "status": "pending",
+    "totalPrice": "159.00",
+    "user": {
+      "id": 2
+    },
+    "items": [
+      {
+        "id": 1,
+        "product": {
+          "id": 33,
+          "name": "Fresh Product",
+          "stock": 8
+        },
+        "quantity": 2,
+        "price": "42.00"
+      },
+      {
+        "id": 2,
+        "product": {
+          "id": 32,
+          "name": "Hoodie NestJS v3",
+          "stock": 74
+        },
+        "quantity": 1,
+        "price": "75.00"
+      }
+    ]
+  },
+  "statusCode": 201
+}
+```
+
+Замовлення успішно створено, `totalPrice` розраховано правильно, а залишки продуктів зменшено.
+
+## Тест інвалідації Redis-кешу
+
+Після створення замовлення виконано:
+
+```bash
+docker compose exec redis redis-cli KEYS "products:*"
+```
+
+Результат:
+
+```text
+(empty array)
+```
+
+Кеш продуктів було автоматично очищено, оскільки створення замовлення змінило `stock`.
+
+## Тест недостатнього stock і rollback
+
+Bob спробував замовити `99999` одиниць товару, для якого було доступно лише `8`.
+
+Результат:
+
+```json
+{
+  "error": {
+    "code": 400,
+    "message": "Insufficient stock for \"Fresh Product\": available 8, requested 99999"
+  }
+}
+```
+
+Після помилки було повторно отримано продукт:
+
+```json
+{
+  "id": 33,
+  "name": "Fresh Product",
+  "stock": 8
+}
+```
+
+Залишок не змінився, що підтвердило правильну роботу rollback транзакції.
+
+## Тест ownership
+
+Alice отримала список власних замовлень:
+
+```json
+{
+  "meta": {
+    "page": 1,
+    "pageSize": 10,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+Bob спробував отримати замовлення Alice:
+
+```bash
+curl.exe -i "http://localhost:3000/api/orders/1" -H "Authorization: Bearer <BOB_TOKEN>"
+```
+
+Результат:
+
+```json
+{
+  "error": {
+    "code": 403,
+    "message": "You can only view your own orders"
+  }
+}
+```
+
+Адміністратор отримав список усіх замовлень. У відповіді були дані власника замовлення, але поле `passwordHash` не поверталося.
+
+## Тест RBAC
+
+Alice спробувала змінити статус замовлення:
+
+```text
+PATCH /api/orders/1/status
+```
+
+Результат:
+
+```json
+{
+  "error": {
+    "code": 403,
+    "message": "Insufficient permissions"
+  }
+}
+```
+
+Отже, змінювати статус може тільки адміністратор.
+
+## Тест зміни статусу
+
+Адміністратор виконав перехід:
+
+```text
+pending → confirmed
+```
+
+Результат:
+
+```json
+{
+  "id": 1,
+  "status": "confirmed",
+  "totalPrice": "159.00"
+}
+```
+
+Після цього було виконано заборонений перехід:
+
+```text
+confirmed → pending
+```
+
+Результат:
+
+```json
+{
+  "error": {
+    "code": 400,
+    "message": "Status transition from \"confirmed\" to \"pending\" is not allowed"
+  }
+}
+```
+
+Валідація переходів між статусами працює правильно.
+
+## Тест скасування та повернення stock
+
+Адміністратор змінив статус:
+
+```text
+confirmed → cancelled
+```
+
+Результат:
+
+```text
+cancelled
+```
+
+До скасування stock товару `33` дорівнював `8`, а після скасування знову став `10`. Stock товару `32` повернувся з `74` до `75`.
+
+Це підтвердило правильну роботу транзакційного повернення товарів на склад.
+
+## Тест фільтрації за статусом
+
+Запит:
+
+```bash
+curl.exe -i "http://localhost:3000/api/orders?status=cancelled&pageSize=5" -H "Authorization: Bearer <ADMIN_TOKEN>"
+```
+
+Результат:
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "status": "cancelled",
+        "totalPrice": "159.00"
+      }
+    ],
+    "meta": {
+      "page": 1,
+      "pageSize": 5,
+      "total": 1,
+      "totalPages": 1
+    }
+  },
+  "statusCode": 200
+}
+```
+
+Фільтрація за статусом і пагінація працюють правильно.
+
+## Swagger UI
+
+Swagger UI доступний за адресою:
+
+```text
+http://localhost:3000/api/docs
+```
+
+У Swagger створено окрему секцію `Orders`, яка містить п’ять endpoint’ів:
+
+```text
+POST    /api/orders
+GET     /api/orders
+GET     /api/orders/{id}
+PATCH   /api/orders/{id}/status
+DELETE  /api/orders/{id}
+```
+
+Для маршрутів відображаються описи операцій, DTO, приклади запитів, можливі відповіді та JWT-авторизація.
+
+## Перевірка компіляції
+
+Команда:
+
+```bash
+docker compose exec app npm run build
+```
+
+Результат:
+
+```text
+> hlpf-env-setup@1.0.0 build
+> nest build
+```
+
+Компіляція завершилася без помилок. У логах NestJS було зареєстровано `OrdersModule`, `OrdersController` і всі п’ять маршрутів замовлень.
+
+## Висновок
+
+У результаті виконання практичного заняття №8 було завершено розробку фінального проєкту MiniShop та створено повноцінний модуль замовлень. Реалізовано сутності `Order` і `OrderItem`, міграцію бази даних, DTO із вкладеною валідацією, JWT-захист, рольову авторизацію, ownership check, пагінацію, фільтрацію за статусом і Swagger-документацію. Створення замовлення виконується в транзакції з перевіркою залишків, зменшенням stock, збереженням snapshot ціни та автоматичним розрахунком totalPrice. У разі помилки транзакція відкочується без часткових змін. Додатково реалізовано повернення товарів на склад при скасуванні замовлення та інвалідацію Redis-кешу після кожної зміни stock. Проведені інтеграційні тести підтвердили правильну роботу валідації, транзакцій, rollback, ownership, RBAC, статусів, пагінації, фільтрації, кешування та всіх нових API endpoint’ів.

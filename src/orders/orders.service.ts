@@ -111,7 +111,14 @@ export class OrdersService {
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.items', 'item')
       .leftJoinAndSelect('item.product', 'product')
-      .leftJoinAndSelect('order.user', 'user');
+      .leftJoin('order.user', 'user')
+      .addSelect([
+        'user.id',
+        'user.email',
+        'user.name',
+        'user.role',
+        'user.createdAt',
+      ]);
 
     if (userRole !== Role.ADMIN) {
       queryBuilder.andWhere('order.userId = :userId', {
@@ -149,10 +156,20 @@ export class OrdersService {
     userId: number,
     userRole: Role,
   ): Promise<Order> {
-    const order = await this.ordersRepository.findOne({
-      where: { id },
-      relations: ['items', 'items.product', 'user'],
-    });
+    const order = await this.ordersRepository
+      .createQueryBuilder('order')
+      .leftJoinAndSelect('order.items', 'item')
+      .leftJoinAndSelect('item.product', 'product')
+      .leftJoin('order.user', 'user')
+      .addSelect([
+        'user.id',
+        'user.email',
+        'user.name',
+        'user.role',
+        'user.createdAt',
+      ])
+      .where('order.id = :id', { id })
+      .getOne();
 
     if (!order) {
       throw new NotFoundException(
@@ -184,7 +201,7 @@ export class OrdersService {
     try {
       const order = await queryRunner.manager.findOne(Order, {
         where: { id },
-        relations: ['items', 'items.product', 'user'],
+         relations: ['items', 'items.product'],
       });
 
       if (!order) {
